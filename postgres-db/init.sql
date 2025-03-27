@@ -1,0 +1,5 @@
+CREATE DATABASE microservices_db;
+
+CREATE USER admin WITH ENCRYPTED PASSWORD 'secret';
+
+GRANT ALL PRIVILEGES ON DATABASE microservices_db TO admin;
