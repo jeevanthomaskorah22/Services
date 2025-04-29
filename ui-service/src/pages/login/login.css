@@ -1,0 +1,43 @@
+.login-page{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #ffffff;
+}
+
+.login-card{
+    width: 400px;
+    padding: 40px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    background-color: white;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.login-input{
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    padding: 10px 20px;
+}
+
+.login-button{
+    background: black;
+    color: white;
+    border-radius: 5px;
+    padding: 10px 20px;
+    cursor: pointer;
+}
+
+.login-footer{
+    display: flex;
+    flex-direction: row;
+    gap: 60px;
+    font-size: 14px;
+}
+
+.footer-text{
+    color:rgb(0, 191, 255) !important;   
+}
