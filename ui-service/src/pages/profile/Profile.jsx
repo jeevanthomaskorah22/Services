@@ -2,6 +2,7 @@ import React from 'react'
 import './profile.css';
 import {ShoppingCartIcon} from '@heroicons/react/24/outline';
 import { ArchiveBoxIcon } from '@heroicons/react/24/outline';
+import {Link} from 'react-router-dom';
 
 const Profile = () => {
   return (
@@ -11,10 +12,10 @@ const Profile = () => {
             <button className="btn">Log Out</button>
         </div>
         <div className="cart-order">
-            <button className="btn2">
+            <Link to="/cart" style={{textDecoration: "none"}}><button className="btn2">
                 <div>Your Cart</div>
                 <ShoppingCartIcon className="cart-icon"/>    
-            </button>
+            </button></Link>
             <button className="btn2">
                 <div>Your Orders</div>
                 <ArchiveBoxIcon className="cart-icon"/>
