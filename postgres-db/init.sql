@@ -1,5 +1,5 @@
-CREATE DATABASE microservices_db;
+CREATE DATABASE order_service_db;
 
 CREATE USER admin WITH ENCRYPTED PASSWORD 'secret';
 
-GRANT ALL PRIVILEGES ON DATABASE microservices_db TO admin;
+GRANT ALL PRIVILEGES ON DATABASE order_service_db TO admin;

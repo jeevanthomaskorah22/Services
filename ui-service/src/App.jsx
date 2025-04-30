@@ -8,6 +8,8 @@ import Signup from "./pages/signup/Signup";
 import Profile from "./pages/profile/Profile";
 import Cart from "./pages/cart/Cart";
 import ProductDetail from "./pages/product-detail/ProductDetail";
+import Products from "./pages/products/Products";
+import Orders from "./pages/orders/Orders";
 
 const AppContent = () => {
   const location = useLocation();
@@ -27,6 +29,8 @@ const AppContent = () => {
         <Route path="/user-profile" element={<Profile />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/product-detail" element={<ProductDetail />} />
+        <Route path="/products" element={<Products />} />
+        <Route path="/orders" element={<Orders />} />
       </Routes>
     </>
   );
