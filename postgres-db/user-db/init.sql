@@ -1,0 +1,3 @@
+CREATE DATABASE user_service_db;
+CREATE USER admin WITH ENCRYPTED PASSWORD 'secret';
+GRANT ALL PRIVILEGES ON DATABASE user_service_db TO admin;

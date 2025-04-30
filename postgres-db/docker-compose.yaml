@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  order-db:
+    build: ../order-db
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: order_service_db
+
+  payment-db:
+    build: ../payment-db
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: payment_service_db
+
+  shipping-db:
+    build: ../shipping-db
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: shipping_service_db
+
+  product-db:
+    build: ../product-db
+    ports:
+      - "5436:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: product_service_db
+
+  user-db:
+    build: ../user-db
+    ports:
+      - "5437:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: user_service_db
