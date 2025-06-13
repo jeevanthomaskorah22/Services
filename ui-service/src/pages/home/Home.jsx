@@ -6,6 +6,7 @@ import Fashion from './Fashion.jpeg';
 import furniture from './furniture.jpeg';
 import sports from './sports.jpeg';
 import food from './food.jpeg';
+import {Link} from 'react-router-dom';
 
 const Home = () => {
   const [showMore, setShowMore] = useState(false);
@@ -17,7 +18,7 @@ const Home = () => {
       <div className="new-style">
         <h1>Discover New Styles!!</h1>
         <p>Explore latest trends and shop now</p>
-        <button className="btn">Shop Now</button>
+        <Link to="/products" style={{textDecoration: "none"}}><button className="btn">Shop Now</button></Link>
       </div>
 
       <div className="category">

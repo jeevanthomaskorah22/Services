@@ -9,7 +9,9 @@
     margin-top: 120px;
     font-family: 'Poppins', sans-serif;
 }
-
+.head{
+    margin-bottom: 50px;
+}
 .order {
     display: flex;
     flex-direction: row;

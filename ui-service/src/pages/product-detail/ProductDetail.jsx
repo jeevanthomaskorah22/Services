@@ -1,54 +1,115 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react';
 import "./product-detail.css";
-import oneplus from './oneplus.jpeg';
-import {Link} from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import oneplus from "./oneplus.jpeg";
+
 const ProductDetail = () => {
+  const { id } = useParams();
+  const [product, setProduct] = useState(null);
+  const [quantity, setQuantity] = useState(1);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchProduct = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        console.error("Token missing");
+        return;
+      }
+
+      try {
+        const res = await axios.get(`http://localhost:8000/products/${id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        setProduct(res.data);
+      } catch (err) {
+        console.error("Error fetching product:", err);
+      }
+    };
+
+    fetchProduct();
+  }, [id]);
+
+  const handleAddToCart = async () => {
+  const userStr = localStorage.getItem("user");
+  const user = userStr ? JSON.parse(userStr) : null;
+  const userId = user?.id;
+
+  if (!userId) {
+    alert("Please log in to add items to the cart.");
+    return;
+  }
+
+  if (!product) {
+    alert("Product data not loaded.");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("user_id", userId);
+  formData.append("product_id", product.id);
+  formData.append("quantity", quantity);
+
+  try {
+    const res = await fetch("http://localhost:8002/cart", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("Server error response:", text);
+      throw new Error(`Server error: ${res.status}`);
+    }
+
+    const result = await res.json();
+    alert(result.message || "Added to cart");
+  } catch (error) {
+    console.error("Error adding to cart:", error.message);
+    alert("Failed to add product to cart.");
+  }
+};
+
+
+  if (!product) return <div>Loading...</div>;
+
   return (
     <div className="product-detail-page">
       <div className="product-detail-container">
-        <img src={oneplus} alt="Product" className="product-detail-image" />
+        <img src={oneplus} alt={product.name} className="product-detail-image" />
         <div className="product-detail-info">
-          <h1 className="product-detail-title">Product Name</h1>
-          <p className="product-detail-description">Product Description</p>
-          <p className="product-detail-description">Quantity : 1</p>
-          <span className="product-detail-price">$99.99</span>
-          <div className="buttons">
-            <button className="btn">Add to Cart</button>
-            <Link to="/cart" style={{textDecoration: "none"}}><button className="btn">Go to Cart</button></Link>
-          </div>
-          <div className="buttons">
-            <button className="btn3">Buy Now</button>
-          </div>
-        </div>
-      </div>
-      
-      <div className="product-detail-footer">
-        <div className="highlights">
-          <h2>Highlights</h2>
-          <ul>
-            <li>6.7" AMOLED Display with 120Hz refresh rate</li>
-            <li>Snapdragon 8 Gen 2 Processor</li>
-            <li>5000mAh Battery with 100W SuperVOOC Charging</li>
-            <li>50MP Triple Rear Camera Setup</li>
-            <li>OxygenOS based on Android 14</li>
-          </ul>
-        </div>
+          <h1 className="product-detail-title">{product.name}</h1>
+          <span className="product-detail-price">${product.price}</span>
+          <p className="product-detail-stock">Stock: {product.stock}</p>
 
-        <div className="reviews">
-          <h2>Customer Reviews</h2>
-            <div className="review-item">
-            <strong>Ravi S.</strong>
-            <p>Absolutely amazing performance and display quality. Super fast charging is a blessing.</p>
-            </div>
-            <div className="review-item">
-            <strong>Meena K.</strong>
-            <p>Camera is top-notch. Premium feel in hand. Definitely a flagship killer.</p>
+          <label htmlFor="quantity">Quantity: </label>
+          <input
+            type="number"
+            id="quantity"
+            min="1"
+            max={product.stock}
+            value={quantity}
+            onChange={(e) => setQuantity(Math.max(1, Math.min(product.stock, parseInt(e.target.value) || 1)))}
+          />
+
+          <div className="buttons">
+            <button className="btn" onClick={handleAddToCart}>
+              Add to Cart
+            </button>
+            
+            <Link to={`/checkout?id=${product.id}`} style={{ textDecoration: 'none' }}>
+              <button className="btn">
+              Buy Now
+            </button>
+            </Link>
           </div>
         </div>
-
       </div>
     </div>
-  )
-}
+  );
+};
 
 export default ProductDetail;

@@ -1,3 +1,11 @@
-CREATE DATABASE product_service_db;
-CREATE USER admin WITH ENCRYPTED PASSWORD 'secret';
-GRANT ALL PRIVILEGES ON DATABASE product_service_db TO admin;
+CREATE USER user WITH ENCRYPTED PASSWORD 'pass';
+CREATE DATABASE productdb OWNER user;
+
+\c productdb;
+
+CREATE TABLE IF NOT EXISTS products (
+    id SERIAL PRIMARY KEY,
+    name TEXT,
+    price NUMERIC,
+    stock INT
+);

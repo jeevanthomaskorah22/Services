@@ -1,12 +1,5 @@
-FROM python:3.10-alpine3.18
-
+FROM python:3.12-slim
 WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
 COPY . .
-
-EXPOSE 8004
-
-CMD ["python", "-m", "http.server", "8004"]
+RUN pip install -r requirements.txt
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

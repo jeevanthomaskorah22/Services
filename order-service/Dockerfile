@@ -1,12 +1,9 @@
-FROM python:3.10-alpine3.18
+FROM python:3.9
 
 WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
 COPY . .
+RUN pip install -r requirements.txt
 
-EXPOSE 8002
+ENV PYTHONPATH=/app
 
-CMD ["python", "-m", "http.server", "8002"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002"]

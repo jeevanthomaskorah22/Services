@@ -1,0 +1,31 @@
+version: '3.9'
+
+services:
+  product_service_db:
+    image: postgres:15
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: product_service_db
+    volumes:
+      - product_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+
+  product-service:
+    build: .
+    container_name: product_service
+    depends_on:
+      - product_service_db
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://user:pass@product_service_db:5432/product_service_db
+    command: >
+      sh -c "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+volumes:
+  product_data:

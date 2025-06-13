@@ -2,46 +2,87 @@ version: '3.8'
 
 services:
   order-db:
-    build: ../order-db
+    build: ./order-db
     ports:
       - "5433:5432"
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: order_service_db
+    networks:
+      - app-network
+    restart: unless-stopped
+    volumes:
+      - order-db-data:/var/lib/postgresql/data
+      - ./order-db/init.sql:/docker-entrypoint-initdb.d/init.sql
 
   payment-db:
-    build: ../payment-db
+    build: ./payment-db
     ports:
       - "5434:5432"
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: payment_service_db
+    networks:
+      - app-network
+    restart: unless-stopped
+    volumes:
+      - payment-db-data:/var/lib/postgresql/data
+      - ./payment-db/init.sql:/docker-entrypoint-initdb.d/init.sql
 
   shipping-db:
-    build: ../shipping-db
+    build: ./shipping-db
     ports:
       - "5435:5432"
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: shipping_service_db
+    networks:
+      - app-network
+    restart: unless-stopped
+    volumes:
+      - shipping-db-data:/var/lib/postgresql/data
+      - ./shipping-db/init.sql:/docker-entrypoint-initdb.d/init.sql
 
   product-db:
-    build: ../product-db
+    build: ./product-db
     ports:
       - "5436:5432"
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: product_service_db
+    networks:
+      - app-network
+    restart: unless-stopped
+    volumes:
+      - product-db-data:/var/lib/postgresql/data
+      - ./product-db/init.sql:/docker-entrypoint-initdb.d/init.sql
 
   user-db:
-    build: ../user-db
+    build: ./user-db
     ports:
       - "5437:5432"
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: user_service_db
+    networks:
+      - app-network
+    restart: unless-stopped
+    volumes:
+      - user-db-data:/var/lib/postgresql/data
+      - ./user-db/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  order-db-data:
+  payment-db-data:
+  shipping-db-data:
+  product-db-data:
+  user-db-data:
+
+networks:
+  app-network:
+    driver: bridge

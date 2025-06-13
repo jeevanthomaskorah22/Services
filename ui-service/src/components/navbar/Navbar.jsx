@@ -13,7 +13,7 @@ const Navbar = () => {
                     <input type="text" placeholder="Search" className="search-input" />
                 </div>
                 <Link to="/user-profile" style={{textDecoration: "none"}}><div className="entries"> Profile</div></Link>
-                <div className="entries"> Products</div>
+                <Link to="/products" style={{textDecoration: "none"}}><div className="entries"> Products</div></Link>
                 <Link to="/cart" style={{textDecoration: "none"}}><div className="entries"> Cart</div></Link>
                 <div className="entries"> More</div>
             </div>

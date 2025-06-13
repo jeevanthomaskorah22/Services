@@ -1,0 +1,27 @@
+services:
+  db:
+    build:
+      context: .
+      dockerfile: Dockerfile.db
+    environment:
+      POSTGRES_PASSWORD: secret
+      POSTGRES_USER: admin
+      POSTGRES_DB: shipping_service_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5435:5432"   
+
+  shipping_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+    ports:
+      - "8005:8005"
+    environment:
+      DATABASE_URL: postgresql://admin:secret@db:5432/shipping_service_db
+
+volumes:
+  postgres_data:

@@ -1,0 +1,41 @@
+services:
+  order_db_container:  
+    image: postgres:15
+    container_name: order_db_container  
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: order_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  order_service:
+    build: .
+    container_name: order_service
+    restart: unless-stopped
+    depends_on:
+      - order_db_container 
+    ports:
+      - "8002:8002"
+    environment:
+      DB_HOST: order_db_container  
+      DB_PORT: 5432
+      DB_NAME: order_db
+      DB_USER: myuser
+      DB_PASSWORD: mypassword
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

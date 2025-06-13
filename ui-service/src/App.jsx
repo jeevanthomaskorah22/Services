@@ -10,6 +10,8 @@ import Cart from "./pages/cart/Cart";
 import ProductDetail from "./pages/product-detail/ProductDetail";
 import Products from "./pages/products/Products";
 import Orders from "./pages/orders/Orders";
+import Checkout from "./pages/checkout/Checkout";
+import OrderDetails from "./pages/order-detail/OrderDetails";
 
 const AppContent = () => {
   const location = useLocation();
@@ -28,9 +30,11 @@ const AppContent = () => {
         <Route path="/signup" element={<Signup />} />
         <Route path="/user-profile" element={<Profile />} />
         <Route path="/cart" element={<Cart />} />
-        <Route path="/product-detail" element={<ProductDetail />} />
+        <Route path="/product-detail/:id" element={<ProductDetail />} />
         <Route path="/products" element={<Products />} />
         <Route path="/orders" element={<Orders />} />
+        <Route path="/checkout" element={<Checkout />} />
+        <Route path="/orders/:orderId" element={<OrderDetails />} />
       </Routes>
     </>
   );
