@@ -100,10 +100,8 @@ const ProductDetail = () => {
               Add to Cart
             </button>
             
-            <Link to={`/checkout?id=${product.id}`} style={{ textDecoration: 'none' }}>
-              <button className="btn">
-              Buy Now
-            </button>
+            <Link to={`/checkout?id=${product.id}&qty=${quantity}`} style={{ textDecoration: 'none' }}>
+              <button className="btn">Buy Now</button>
             </Link>
           </div>
         </div>

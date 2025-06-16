@@ -10,8 +10,6 @@ router= APIRouter(
     tags=['Products']
     )
 
-#CRUD 
-
 @router.get('/',response_model=List[schemas.ShowProduct])
 def all(db:Session =Depends(get_db), token: dict = Depends(verify_token)):
     products=db.query(models.Product).all()

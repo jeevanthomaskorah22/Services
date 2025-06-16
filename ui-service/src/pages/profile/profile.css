@@ -157,7 +157,28 @@
     width: 200px;
 }
 
+.profile-edit-btn {
+    background: #000;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 15px;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: all 0.3s ease;
+    align-self: flex-end;
+    width: 200px;
+}
+
 .profile-save-btn:hover {
+    background: #222;
+    transform: translateY(-2px);
+}
+
+.profile-edit-btn:hover {
     background: #222;
     transform: translateY(-2px);
 }
@@ -180,6 +201,10 @@
     }
 
     .profile-save-btn {
+        width: 100%;
+    }
+
+    .profile-edit-btn {
         width: 100%;
     }
 }

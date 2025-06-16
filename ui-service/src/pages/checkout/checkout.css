@@ -154,3 +154,11 @@
     width: 100%;
   }
 }
+
+.order-total {
+  text-align: right;
+  margin-top: 15px;
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
