@@ -1,11 +1,6 @@
 pipeline {
     agent any
 
-    environment {
-        DOCKERHUB_USER = 'jtk022'
-        DOCKERHUB_PASS = credentials('docker-hub-credentials')
-    }
-
     stages {
         stage('Prepare') {
             steps {
@@ -25,7 +20,7 @@ pipeline {
                         'ui-service'
                     ]
                     for (service in services) {
-                        bat "docker build -t %DOCKERHUB_USER%/${service}:latest .\\${service}"
+                        bat "docker build -t jtk022/${service}:latest .\\${service}"
                     }
                 }
             }
@@ -33,18 +28,22 @@ pipeline {
 
         stage('Docker Push') {
             steps {
-                script {
-                    bat "echo %DOCKERHUB_PASS% | docker login -u %DOCKERHUB_USER% --password-stdin"
-                    def services = [
-                        'order-service',
-                        'payment-service',
-                        'shipping-service',
-                        'product-service',
-                        'user-service',
-                        'ui-service'
-                    ]
-                    for (service in services) {
-                        bat "docker push %DOCKERHUB_USER%/${service}:latest"
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
+                    script {
+                        bat """
+                        echo %DOCKERHUB_PASS% | docker login -u %DOCKERHUB_USER% --password-stdin
+                        """
+                        def services = [
+                            'order-service',
+                            'payment-service',
+                            'shipping-service',
+                            'product-service',
+                            'user-service',
+                            'ui-service'
+                        ]
+                        for (service in services) {
+                            bat "docker push %DOCKERHUB_USER%/${service}:latest"
+                        }
                     }
                 }
             }
