@@ -7,9 +7,9 @@ pipeline {
     }
 
     stages {
-        stage('Clone Repo') {
+        stage('Prepare') {
             steps {
-                git 'https://github.com/jeevanthomaskorah22/Services.git'
+                echo 'Code already checked out by Jenkins'
             }
         }
 
@@ -24,9 +24,8 @@ pipeline {
                         'user-service',
                         'ui-service'
                     ]
-
                     for (service in services) {
-                        sh "docker build -t ${DOCKERHUB_USER}/${service}:latest ./${service}"
+                        bat "docker build -t %DOCKERHUB_USER%/${service}:latest .\\${service}"
                     }
                 }
             }
@@ -35,7 +34,7 @@ pipeline {
         stage('Docker Push') {
             steps {
                 script {
-                    sh "echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin"
+                    bat "echo %DOCKERHUB_PASS% | docker login -u %DOCKERHUB_USER% --password-stdin"
                     def services = [
                         'order-service',
                         'payment-service',
@@ -45,7 +44,7 @@ pipeline {
                         'ui-service'
                     ]
                     for (service in services) {
-                        sh "docker push ${DOCKERHUB_USER}/${service}:latest"
+                        bat "docker push %DOCKERHUB_USER%/${service}:latest"
                     }
                 }
             }
@@ -53,8 +52,8 @@ pipeline {
 
         stage('Deploy with Docker Compose') {
             steps {
-                sh 'docker-compose down'
-                sh 'docker-compose up -d --build'
+                bat "docker-compose down"
+                bat "docker-compose up -d --build"
             }
         }
     }
@@ -62,7 +61,7 @@ pipeline {
     post {
         always {
             echo 'Cleaning up...'
-            sh 'docker system prune -f'
+            bat 'docker system prune -f'
         }
     }
 }
