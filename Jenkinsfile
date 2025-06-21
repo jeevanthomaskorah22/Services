@@ -21,9 +21,7 @@ pipeline {
                     ]
                     for (service in services) {
                         echo "Building image for ${service}..."
-                        bat """
-                        docker build --no-cache -t jtk022/${service}:latest .\\${service}
-                        """
+                        bat "docker build --no-cache -t jtk022/${service}:latest .\\${service}"
                     }
                 }
             }
@@ -33,9 +31,8 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
                     script {
-                        bat """
-                        echo %DOCKERHUB_PASS% | docker login -u %DOCKERHUB_USER% --password-stdin
-                        """
+                        bat "echo %DOCKERHUB_PASS% | docker login -u %DOCKERHUB_USER% --password-stdin"
+                        
                         def services = [
                             'order-service',
                             'payment-service',
@@ -44,17 +41,14 @@ pipeline {
                             'user-service',
                             'ui-service'
                         ]
+                        
                         for (service in services) {
-                            echo "Pushing ${service} to Docker Hub..."
-                            def pushStatus = bat(script: """
-                                docker push %DOCKERHUB_USER%/${service}:latest
-                                if errorlevel 1 exit /b 1
-                                timeout /t 5
-                            """, returnStatus: true)
-
+                            echo "Pushing ${service}..."
+                            def pushStatus = bat(script: "docker push %DOCKERHUB_USER%/${service}:latest || exit /b 1", returnStatus: true)
                             if (pushStatus != 0) {
                                 error("Docker push failed for ${service}")
                             }
+                            sleep time: 5, unit: 'SECONDS'
                         }
                     }
                 }
