@@ -20,7 +20,10 @@ pipeline {
                         'ui-service'
                     ]
                     for (service in services) {
-                        bat "docker build -t jtk022/${service}:latest .\\${service}"
+                        echo "Building image for ${service}..."
+                        bat """
+                        docker build --no-cache -t jtk022/${service}:latest .\\${service}
+                        """
                     }
                 }
             }
@@ -42,7 +45,16 @@ pipeline {
                             'ui-service'
                         ]
                         for (service in services) {
-                            bat "docker push %DOCKERHUB_USER%/${service}:latest"
+                            echo "Pushing ${service} to Docker Hub..."
+                            def pushStatus = bat(script: """
+                                docker push %DOCKERHUB_USER%/${service}:latest
+                                if errorlevel 1 exit /b 1
+                                timeout /t 5
+                            """, returnStatus: true)
+
+                            if (pushStatus != 0) {
+                                error("Docker push failed for ${service}")
+                            }
                         }
                     }
                 }
