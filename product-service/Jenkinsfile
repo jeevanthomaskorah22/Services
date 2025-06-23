@@ -70,7 +70,7 @@ pipeline {
             }
         }
 
-        stage('Verify Pact Contracts') {
+    stage('Verify Pact Contracts') {
     steps {
         script {
             echo "Verifying pact contract: orderservice-productservice.json"
@@ -79,6 +79,7 @@ pipeline {
         }
     }
 }
+    }
     post {
         always {
             echo "Cleaning up..."
