@@ -3,10 +3,13 @@ pipeline {
 
     environment {
         IMAGE_NAME = 'jtk022/product-service:latest'
+        PROVIDER_NAME = 'ProductService'
+        PACT_CONTRACT_REPO = 'https://github.com/Anagha-mahesh/microservice_pacts'
+        PACT_CONTRACT_DIR = 'contracts'  // name of folder to clone into
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout Product Service Code') {
             steps {
                 git url: 'https://github.com/jeevanthomaskorah22/Services', branch: 'main'
             }
@@ -15,9 +18,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 dir('product-service') {
-                    script {
-                        bat "docker build -t ${IMAGE_NAME} ."
-                    }
+                    bat "docker build -t ${IMAGE_NAME} ."
                 }
             }
         }
@@ -25,21 +26,47 @@ pipeline {
         stage('Docker Login & Push') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    script {
-                        bat "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
-                        bat "docker push ${IMAGE_NAME}"
-                    }
+                    bat "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
+                    bat "docker push ${IMAGE_NAME}"
                 }
             }
         }
 
-        stage('Run Container') {
+        stage('Run Product Service') {
+            steps {
+                bat "docker stop product-service || exit 0"
+                bat "docker rm product-service || exit 0"
+                bat "docker run -d -p 5003:5000 --name product-service ${IMAGE_NAME}"
+                bat "timeout /t 10"  // give it time to be up
+            }
+        }
+
+        stage('Clone Pact Contracts Repo') {
+            steps {
+                dir("${PACT_CONTRACT_DIR}") {
+                    git url: "${PACT_CONTRACT_REPO}", branch: 'main'
+                }
+            }
+        }
+
+        stage('Verify Pact Contracts') {
             steps {
                 script {
-                    // Optional - run only if you want to test the service locally
-                    bat "docker stop product-service || exit 0"
-                    bat "docker rm product-service || exit 0"
-                    bat "docker run -d -p 5003:5000 --name product-service ${IMAGE_NAME}"
+                    def pactFiles = [
+                        'orderservice-productservice.json',
+                        'UIService-ProductService.json'
+                    ]
+                    for (contract in pactFiles) {
+                        bat """
+                        docker run --rm ^
+                          -v "%WORKSPACE%\\${PACT_CONTRACT_DIR}:/pacts" ^
+                          pactfoundation/pact-cli:latest ^
+                          verify ^
+                          --provider-base-url=http://host.docker.internal:5003 ^
+                          --pact-url=/pacts/${contract} ^
+                          --provider=${PROVIDER_NAME}
+                        """
+                    }
                 }
             }
         }
@@ -48,6 +75,8 @@ pipeline {
     post {
         always {
             echo "Cleaning up..."
+            bat "docker stop product-service || exit 0"
+            bat "docker rm product-service || exit 0"
             bat "docker system prune -f"
         }
     }
