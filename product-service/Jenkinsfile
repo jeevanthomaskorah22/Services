@@ -33,21 +33,22 @@ pipeline {
         }
 
         stage('Run Container') {
-    steps {
-        script {
-            bat "docker stop product-service || exit 0"
-            bat "docker rm product-service || exit 0"
-            bat "docker run -d -p 5003:5000 --name product-service ${IMAGE_NAME}"
-            // Delay to give container time to start
-            bat "ping -n 11 127.0.0.1 > nul"
+            steps {
+                script {
+                    bat "docker stop product-service || exit 0"
+                    bat "docker rm product-service || exit 0"
+                    bat "docker run -d -p 5003:5000 --name product-service ${IMAGE_NAME}"
+                    // Allow time for container to start
+                    bat "ping -n 11 127.0.0.1 > nul"
+                }
+            }
         }
-    }
-}
 
         stage('Clone Pact Contracts Repo') {
             steps {
-                dir("${PACT_CONTRACT_DIR}") {
-                    git url: "${PACT_CONTRACT_REPO}", branch: 'main'
+                script {
+                    bat "rmdir /s /q ${PACT_CONTRACT_DIR} || exit 0"
+                    bat "git clone ${PACT_CONTRACT_REPO} ${PACT_CONTRACT_DIR}"
                 }
             }
         }
@@ -59,6 +60,7 @@ pipeline {
                         'orderservice-productservice.json',
                         'UIService-ProductService.json'
                     ]
+
                     for (contract in pactFiles) {
                         bat """
                         docker run --rm ^
