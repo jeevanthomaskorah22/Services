@@ -5,7 +5,7 @@ pipeline {
         IMAGE_NAME = 'jtk022/product-service:latest'
         PROVIDER_NAME = 'ProductService'
         PACT_CONTRACT_REPO = 'https://github.com/Anagha-mahesh/microservice_pacts'
-        PACT_CONTRACT_DIR = 'contracts'  // name of folder to clone into
+        PACT_CONTRACT_DIR = 'contracts'
     }
 
     stages {
@@ -38,7 +38,6 @@ pipeline {
                     bat "docker stop product-service || exit 0"
                     bat "docker rm product-service || exit 0"
                     bat "docker run -d -p 5003:5000 --name product-service ${IMAGE_NAME}"
-                    // Allow time for container to start
                     bat "ping -n 11 127.0.0.1 > nul"
                 }
             }
@@ -46,10 +45,18 @@ pipeline {
 
         stage('Clone Pact Contracts Repo') {
             steps {
-                script {
-                    bat "rmdir /s /q ${PACT_CONTRACT_DIR} || exit 0"
-                    bat "git clone ${PACT_CONTRACT_REPO} ${PACT_CONTRACT_DIR}"
+                dir("${PACT_CONTRACT_DIR}") {
+                    git url: "${PACT_CONTRACT_REPO}", branch: 'main'
                 }
+            }
+        }
+
+        stage('Debug Contract Files') {
+            steps {
+                bat "echo Listing contents of the contracts directory:"
+                bat "dir ${PACT_CONTRACT_DIR}"
+                bat "echo Displaying content of orderservice-productservice.json (if exists):"
+                bat "type ${PACT_CONTRACT_DIR}\\orderservice-productservice.json"
             }
         }
 
@@ -60,9 +67,9 @@ pipeline {
                         'orderservice-productservice.json',
                         'UIService-ProductService.json'
                     ]
-
                     for (contract in pactFiles) {
                         bat """
+                        echo Verifying pact contract: ${contract}
                         docker run --rm ^
                           -v "%WORKSPACE%\\${PACT_CONTRACT_DIR}:/pacts" ^
                           pactfoundation/pact-cli:latest ^
