@@ -71,37 +71,14 @@ pipeline {
         }
 
         stage('Verify Pact Contracts') {
-            steps {
-                script {
-                    def pactFiles = [
-                        'orderservice-productservice.json',
-                        'UIService-ProductService.json'
-                        // Add other pact files if necessary, e.g., 'paymentservice-orderservice.json'
-                    ]
-
-                    for (contract in pactFiles) {
-                        // This is the path INSIDE the Docker container for the pact file
-                        def containerPactPath = "/pacts/${contract}"
-
-                        // *** THE KEY CORRECTION: Remove all `^` for line continuation ***
-                        // Construct the entire docker run command as a single string.
-                        // Groovy's triple-quoted string handles newlines without needing `^`
-                        // for `bat`. The `bat` command will then receive the entire string
-                        // as one command line.
-                        def dockerVerifyCommand = """
-                            docker run --rm -v "%WORKSPACE%\\\\${PACT_CONTRACT_DIR}:/pacts" pactfoundation/pact-cli:latest verify --provider-base-url=http://host.docker.internal:5003 --pact-url="${containerPactPath}" --provider="${PROVIDER_NAME}"
-                        """.stripIndent().trim() // .trim() removes any leftover newline at end
-
-                        bat """
-                        echo Verifying pact contract: ${contract}
-                        ${dockerVerifyCommand}
-                        """
-                    }
-                }
-            }
+    steps {
+        script {
+            echo "Verifying pact contract: orderservice-productservice.json"
+            // Corrected command: Removed quotes around the --pact-url value
+            bat "docker run --rm -v \"${WORKSPACE}\\contracts:/pacts\" pactfoundation/pact-cli:latest verify --provider-base-url=http://host.docker.internal:5003 --pact-url=/pacts/orderservice-productservice.json --provider=\"ProductService\""
         }
     }
-
+}
     post {
         always {
             echo "Cleaning up..."
