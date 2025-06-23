@@ -83,21 +83,14 @@ pipeline {
                         // This is the path INSIDE the Docker container for the pact file
                         def containerPactPath = "/pacts/${contract}"
 
-                        // IMPORTANT: Construct the entire docker run command as a single string
-                        // and ensure proper escaping for Windows `bat` command and Docker arguments.
-                        // The `^` for line continuation is removed for arguments like --pact-url
-                        // to prevent parsing issues by cmd.exe.
-                        // Double backslashes `\\` are used in Groovy string to get a literal backslash
-                        // for the Windows path within the `-v` mount.
+                        // *** THE KEY CORRECTION: Remove all `^` for line continuation ***
+                        // Construct the entire docker run command as a single string.
+                        // Groovy's triple-quoted string handles newlines without needing `^`
+                        // for `bat`. The `bat` command will then receive the entire string
+                        // as one command line.
                         def dockerVerifyCommand = """
-                            docker run --rm ^
-                            -v "%WORKSPACE%\\\\${PACT_CONTRACT_DIR}:/pacts" ^
-                            pactfoundation/pact-cli:latest ^
-                            verify ^
-                            --provider-base-url=http://host.docker.internal:5003 ^
-                            --pact-url="${containerPactPath}" ^
-                            --provider="${PROVIDER_NAME}"
-                        """.stripIndent() // stripIndent() helps clean up multi-line strings
+                            docker run --rm -v "%WORKSPACE%\\\\${PACT_CONTRACT_DIR}:/pacts" pactfoundation/pact-cli:latest verify --provider-base-url=http://host.docker.internal:5003 --pact-url="${containerPactPath}" --provider="${PROVIDER_NAME}"
+                        """.stripIndent().trim() // .trim() removes any leftover newline at end
 
                         bat """
                         echo Verifying pact contract: ${contract}
