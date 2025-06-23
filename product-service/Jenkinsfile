@@ -32,14 +32,17 @@ pipeline {
             }
         }
 
-        stage('Run Product Service') {
-            steps {
-                bat "docker stop product-service || exit 0"
-                bat "docker rm product-service || exit 0"
-                bat "docker run -d -p 5003:5000 --name product-service ${IMAGE_NAME}"
-                bat "timeout /t 10"  // give it time to be up
-            }
+        stage('Run Container') {
+    steps {
+        script {
+            bat "docker stop product-service || exit 0"
+            bat "docker rm product-service || exit 0"
+            bat "docker run -d -p 5003:5000 --name product-service ${IMAGE_NAME}"
+            // Delay to give container time to start
+            bat "ping -n 11 127.0.0.1 > nul"
         }
+    }
+}
 
         stage('Clone Pact Contracts Repo') {
             steps {
