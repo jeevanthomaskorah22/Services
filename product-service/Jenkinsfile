@@ -68,6 +68,9 @@ pipeline {
                         'UIService-ProductService.json'
                     ]
                     for (contract in pactFiles) {
+                        // For Windows paths in Docker, it's safer to construct the absolute path within the container.
+                        // The mounted volume is at /pacts, so the files will be at /pacts/filename.json
+                        def containerPactPath = "/pacts/${contract}"
                         bat """
                         echo Verifying pact contract: ${contract}
                         docker run --rm ^
@@ -75,14 +78,13 @@ pipeline {
                           pactfoundation/pact-cli:latest ^
                           verify ^
                           --provider-base-url=http://host.docker.internal:5003 ^
-                          --pact-url=/pacts/${contract} ^
+                          --pact-url=${containerPactPath} ^
                           --provider=${PROVIDER_NAME}
                         """
                     }
                 }
             }
         }
-    }
 
     post {
         always {
