@@ -1,0 +1,54 @@
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = 'jtk022/user-service:latest'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git url: 'https://github.com/jeevanthomaskorah22/Services', branch: 'main'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                dir('user-service') {
+                    script {
+                        bat "docker build -t ${IMAGE_NAME} ."
+                    }
+                }
+            }
+        }
+
+        stage('Docker Login & Push') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    script {
+                        bat "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
+                        bat "docker push ${IMAGE_NAME}"
+                    }
+                }
+            }
+        }
+
+        stage('Run Container') {
+            steps {
+                script {
+                    // Optional - run only if you want to test the service locally
+                    bat "docker stop user-service || exit 0"
+                    bat "docker rm user-service || exit 0"
+                    bat "docker run -d -p 5005:5000 --name user-service ${IMAGE_NAME}"
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "Cleaning up..."
+            bat "docker system prune -f"
+        }
+    }
+}
