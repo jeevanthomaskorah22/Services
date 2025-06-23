@@ -5,19 +5,21 @@ pipeline {
         IMAGE_NAME = 'jtk022/product-service:latest'
         PROVIDER_NAME = 'ProductService'
         PACT_CONTRACT_REPO = 'https://github.com/Anagha-mahesh/microservice_pacts'
-        PACT_CONTRACT_DIR = 'contracts'
+        PACT_CONTRACT_DIR = 'contracts' // This will be created/used within the workspace
     }
 
     stages {
         stage('Checkout Product Service Code') {
             steps {
+                // This will clone the 'Services' repo into the root of the workspace.
+                // The 'product-service' sub-directory will then be available.
                 git url: 'https://github.com/jeevanthomaskorah22/Services', branch: 'main'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                dir('product-service') {
+                dir('product-service') { // Change directory into the cloned 'product-service' folder
                     bat "docker build -t ${IMAGE_NAME} ."
                 }
             }
@@ -26,7 +28,9 @@ pipeline {
         stage('Docker Login & Push') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    bat "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
+                    // Use --password-stdin for security, although Jenkins warns about string interpolation.
+                    // This is generally accepted for docker login --password-stdin
+                    bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
                     bat "docker push ${IMAGE_NAME}"
                 }
             }
@@ -35,16 +39,21 @@ pipeline {
         stage('Run Container') {
             steps {
                 script {
+                    // Stop and remove previous container instances gracefully
                     bat "docker stop product-service || exit 0"
                     bat "docker rm product-service || exit 0"
+                    // Start the new container
                     bat "docker run -d -p 5003:5000 --name product-service ${IMAGE_NAME}"
-                    bat "ping -n 11 127.0.0.1 > nul"
+                    // Wait for the service to start
+                    bat "ping -n 11 127.0.0.1 > nul" // Wait 10 seconds (11 pings with 1s interval)
                 }
             }
         }
 
         stage('Clone Pact Contracts Repo') {
             steps {
+                // This clones the pacts repo INTO the PACT_CONTRACT_DIR
+                // So, contracts will be at %WORKSPACE%\contracts\orderservice-productservice.json
                 dir("${PACT_CONTRACT_DIR}") {
                     git url: "${PACT_CONTRACT_REPO}", branch: 'main'
                 }
@@ -53,8 +62,9 @@ pipeline {
 
         stage('Debug Contract Files') {
             steps {
+                // Confirm the files are indeed in the expected host location
                 bat "echo Listing contents of the contracts directory:"
-                bat "dir ${PACT_CONTRACT_DIR}"
+                bat "dir ${PACT_CONTRACT_DIR}" // This lists files in C:\...\workspace\product-service-pipeline\contracts
                 bat "echo Displaying content of orderservice-productservice.json (if exists):"
                 bat "type ${PACT_CONTRACT_DIR}\\orderservice-productservice.json"
             }
@@ -66,20 +76,32 @@ pipeline {
                     def pactFiles = [
                         'orderservice-productservice.json',
                         'UIService-ProductService.json'
+                        // Add other pact files if necessary, e.g., 'paymentservice-orderservice.json'
                     ]
+
                     for (contract in pactFiles) {
-                        // For Windows paths in Docker, it's safer to construct the absolute path within the container.
-                        // The mounted volume is at /pacts, so the files will be at /pacts/filename.json
+                        // This is the path INSIDE the Docker container for the pact file
                         def containerPactPath = "/pacts/${contract}"
+
+                        // IMPORTANT: Construct the entire docker run command as a single string
+                        // and ensure proper escaping for Windows `bat` command and Docker arguments.
+                        // The `^` for line continuation is removed for arguments like --pact-url
+                        // to prevent parsing issues by cmd.exe.
+                        // Double backslashes `\\` are used in Groovy string to get a literal backslash
+                        // for the Windows path within the `-v` mount.
+                        def dockerVerifyCommand = """
+                            docker run --rm ^
+                            -v "%WORKSPACE%\\\\${PACT_CONTRACT_DIR}:/pacts" ^
+                            pactfoundation/pact-cli:latest ^
+                            verify ^
+                            --provider-base-url=http://host.docker.internal:5003 ^
+                            --pact-url="${containerPactPath}" ^
+                            --provider="${PROVIDER_NAME}"
+                        """.stripIndent() // stripIndent() helps clean up multi-line strings
+
                         bat """
                         echo Verifying pact contract: ${contract}
-                        docker run --rm ^
-                          -v "%WORKSPACE%\\${PACT_CONTRACT_DIR}:/pacts" ^
-                          pactfoundation/pact-cli:latest ^
-                          verify ^
-                          --provider-base-url=http://host.docker.internal:5003 ^
-                          --pact-url=${containerPactPath} ^
-                          --provider=${PROVIDER_NAME}
+                        ${dockerVerifyCommand}
                         """
                     }
                 }
@@ -90,9 +112,11 @@ pipeline {
     post {
         always {
             echo "Cleaning up..."
+            // Ensure container is stopped and removed
             bat "docker stop product-service || exit 0"
             bat "docker rm product-service || exit 0"
+            // Clean up unused Docker objects
             bat "docker system prune -f"
         }
     }
-    }
+}
