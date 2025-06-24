@@ -45,11 +45,15 @@ docker run --rm ^
   pact-provider-verifier ^
   --provider-base-url=http://host.docker.internal:5003 ^
   --provider=ProductService ^
+  --pact-broker-base-url=${PACT_BROKER_URL} ^
+  --broker-token=${PACT_TOKEN} ^
   --publish-verification-results ^
-  --provider-app-version=${env.PACT_PROVIDER_VERSION} ^
-  --broker-base-url=${PACT_BROKER_URL} ^
-  --broker-token=${PACT_TOKEN}
+  --provider-app-version=${PACT_PROVIDER_VERSION} ^
+  --consumer-version-selectors='[{"mainBranch": true}, {"deployedOrReleased": true}]' ^
+  --enable-pending ^
+  --enable-wip-pacts
 """
+
 
                     }
                 }
