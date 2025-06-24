@@ -6,7 +6,7 @@ pipeline {
         PACT_REPO = 'https://github.com/Anagha-mahesh/microservice_pacts.git'
         PACT_CONTRACT = 'orderservice-productservice.json'
         PACT_CLI_IMAGE = 'pactfoundation/pact-cli:latest'
-        PACT_BROKER_URL = 'https://nitc-0bb42495.pactflow.io' // Update with your actual Pact Broker URL
+        PACT_BROKER_URL = 'https://nitc-0bb42495.pactflow.io'
     }
 
     stages {
@@ -56,37 +56,60 @@ pipeline {
             }
         }
 
-stage('Publish Pact Contract') {
-    steps {
-        withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
-            script {
-                // Get commit hash correctly using PowerShell
-                def pactVersion = powershell(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
-                echo "Using Pact version: ${pactVersion}"
+        stage('Publish Pact Contract') {
+            steps {
+                withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
+                    script {
+                        def pactVersion = powershell(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+                        echo "Using Pact version: ${pactVersion}"
 
-                // Use pactVersion correctly
-                bat """
-                docker run --rm ^
-                  -v "%cd%\\microservice_pacts:/pacts" ^
-                  pactfoundation/pact-cli:latest ^
-                  publish /pacts/orderservice-productservice.json ^
-                  --consumer-app-version=${pactVersion} ^
-                  --broker-base-url=${PACT_BROKER_URL} ^
-                  --broker-token=${PACT_TOKEN}
-                """
+                        bat """
+                        docker run --rm ^
+                          -v "%cd%\\microservice_pacts:/pacts" ^
+                          ${PACT_CLI_IMAGE} ^
+                          publish /pacts/${PACT_CONTRACT} ^
+                          --consumer-app-version=${pactVersion} ^
+                          --broker-base-url=${PACT_BROKER_URL} ^
+                          --broker-token=${PACT_TOKEN}
+                        """
+                    }
+                }
             }
         }
-    }
-}
 
+        stage('Verify Pact Contracts') {
+            steps {
+                script {
+                    def commitHash = powershell(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    env.PACT_PROVIDER_VERSION = commitHash
 
-
-
+                    withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
+                        bat """
+                        docker run --rm ^
+                          --network="host" ^
+                          ${PACT_CLI_IMAGE} ^
+                          broker verify ^
+                          --provider-base-url=http://host.docker.internal:5001 ^
+                          --provider=OrderService ^
+                          --consumer-version-selectors='[{"mainBranch": true}, {"deployedOrReleased": true}]' ^
+                          --enable-pending ^
+                          --enable-wip-pacts ^
+                          --publish-verification-results ^
+                          --provider-app-version=${PACT_PROVIDER_VERSION} ^
+                          --broker-base-url=${PACT_BROKER_URL} ^
+                          --broker-token=${PACT_TOKEN}
+                        """
+                    }
+                }
+            }
+        }
     }
 
     post {
         always {
             echo "Cleaning up..."
+            bat "docker stop order-service || exit 0"
+            bat "docker rm order-service || exit 0"
             bat "docker system prune -f"
         }
     }
