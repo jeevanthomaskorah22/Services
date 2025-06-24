@@ -66,14 +66,13 @@ stage('Publish Pact Contract') {
 
                 // Use pactVersion correctly
                 bat """
-                set TOKEN=${PACT_TOKEN} && ^
                 docker run --rm ^
-                  -v %cd%\\microservice_pacts:/pacts ^
+                  -v "%cd%\\microservice_pacts:/pacts" ^
                   pactfoundation/pact-cli:latest ^
                   publish /pacts/orderservice-productservice.json ^
                   --consumer-app-version=${pactVersion} ^
-                  --broker-base-url=https://nitc-0bb42495.pactflow.io ^
-                  --broker-token=%TOKEN%
+                  --broker-base-url=${PACT_BROKER_URL} ^
+                  --broker-token=${PACT_TOKEN}
                 """
             }
         }
