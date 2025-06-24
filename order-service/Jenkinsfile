@@ -2,11 +2,12 @@ pipeline {
     agent any
 
     environment {
+        // Static environment variables, directly assigned or from global settings
         IMAGE_NAME = 'jtk022/order-service:latest'
         PACT_REPO = 'https://github.com/Anagha-mahesh/microservice_pacts.git'
         PACT_CONTRACT = 'orderservice-productservice.json'
         PACT_CLI_IMAGE = 'pactfoundation/pact-cli:latest'
-        PACT_BROKER_URL = 'https://nitc-0bb42495.pactflow.io'
+        PACT_BROKER_URL = 'https://nitc-0bb42495.pactflow.io' // Your PactFlow URL
     }
 
     stages {
@@ -40,8 +41,10 @@ pipeline {
         stage('Run Container') {
             steps {
                 script {
+                    // Stop and remove existing container if it exists
                     bat "docker stop order-service || exit 0"
                     bat "docker rm order-service || exit 0"
+                    // Run the new container
                     bat "docker run -d -p 5001:5000 --name order-service ${IMAGE_NAME}"
                 }
             }
@@ -50,7 +53,8 @@ pipeline {
         stage('Clone Pact Contract Repo') {
             steps {
                 script {
-                    bat 'rmdir /S /Q microservice_pacts || exit 0'
+                    // Clean up existing directory and clone the pacts repository
+                    bat 'if exist microservice_pacts rmdir /S /Q microservice_pacts' // Use 'if exist' for robustness
                     bat "git clone ${PACT_REPO} microservice_pacts"
                 }
             }
@@ -60,9 +64,11 @@ pipeline {
             steps {
                 withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
                     script {
+                        // Get commit hash for the consumer version
                         def pactVersion = powershell(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
-                        echo "Using Pact version: ${pactVersion}"
+                        echo "Using Pact consumer version: ${pactVersion}"
 
+                        // Publish the pact contract to the Pact Broker
                         bat """
                         docker run --rm ^
                           -v "%cd%\\microservice_pacts:/pacts" ^
@@ -78,43 +84,49 @@ pipeline {
         }
 
         stage('Verify Pact Contracts') {
-    environment {
-        // Get the Git commit hash for the provider version
-        def commitHash = powershell(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-        PACT_PROVIDER_VERSION = commitHash // Use env.PACT_PROVIDER_VERSION in the bat command
-    }
-    steps {
-        withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
-            script {
-                bat """
-                docker run --rm ^
-                  --network="host" ^
-                  ${PACT_CLI_IMAGE} ^
-                  verify ^
-                  ${PACT_BROKER_URL} ^
-                  --provider-base-url=http://host.docker.internal:5001 ^
-                  --provider=OrderService ^
-                  --consumer-version-selectors='[{{\\"mainBranch\\": true}}, {\\"deployedOrReleased\\": true}]' ^
-                  --enable-pending ^
-                  --enable-wip-pacts ^
-                  --publish-verification-results ^
-                  --provider-app-version=${PACT_PROVIDER_VERSION} ^
-                  --broker-token=${PACT_TOKEN}
-                  REM If your OrderService is ALSO a provider for some pacts (which is what this stage implies),
-                  REM and those pacts define provider states, you would need this:
-                  REM --state-handlers=http://host.docker.internal:5001/_pact/states
-                """
+            steps {
+                script {
+                    // Get commit hash for the provider version dynamically within the script block
+                    def commitHash = powershell(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    env.PACT_PROVIDER_VERSION = commitHash // Assign to environment variable using env.
+
+                    echo "Using Pact provider version for verification: ${env.PACT_PROVIDER_VERSION}"
+
+                    withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
+                        // Verify pacts from the broker against the running OrderService (as a provider)
+                        // If OrderService is a provider for other services
+                        bat """
+                        docker run --rm ^
+                          --network="host" ^
+                          ${PACT_CLI_IMAGE} ^
+                          verify ^
+                          ${PACT_BROKER_URL} ^
+                          --provider-base-url=http://host.docker.internal:5001 ^
+                          --provider=OrderService ^
+                          --consumer-version-selectors='[{{\\"mainBranch\\": true}}, {\\"deployedOrReleased\\": true}]' ^
+                          --enable-pending ^
+                          --enable-wip-pacts ^
+                          --publish-verification-results ^
+                          --provider-app-version=${env.PACT_PROVIDER_VERSION} ^
+                          --broker-token=${PACT_TOKEN}
+                          REM IMPORTANT: If OrderService has consumer pacts with provider states,
+                          REM you MUST uncomment the line below and implement a state handler endpoint
+                          REM in your OrderService application at http://host.docker.internal:5001/_pact/states
+                          REM --state-handlers=http://host.docker.internal:5001/_pact/states
+                        """
+                    }
+                }
             }
         }
-    }
-}
     }
 
     post {
         always {
             echo "Cleaning up..."
+            // Stop and remove the Order Service container
             bat "docker stop order-service || exit 0"
             bat "docker rm order-service || exit 0"
+            // Prune unused Docker objects
             bat "docker system prune -f"
         }
     }
