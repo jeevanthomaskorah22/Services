@@ -60,13 +60,11 @@ stage('Publish Pact Contract') {
     steps {
         withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
             script {
-                // Get Git commit hash
-                def pactVersion = bat(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-
-                // Print the version (optional for debugging)
+                // Get commit hash correctly using PowerShell
+                def pactVersion = powershell(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
                 echo "Using Pact version: ${pactVersion}"
 
-                // Run the pact-cli publish command
+                // Use pactVersion correctly
                 bat """
                 set TOKEN=${PACT_TOKEN} && ^
                 docker run --rm ^
@@ -81,6 +79,7 @@ stage('Publish Pact Contract') {
         }
     }
 }
+
 
 
 
