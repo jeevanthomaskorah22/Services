@@ -2,91 +2,56 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = 'jtk022/product-service:latest'
-        PROVIDER_NAME = 'ProductService'
-        PACT_CONTRACT_REPO = 'https://github.com/Anagha-mahesh/microservice_pacts'
-        PACT_CONTRACT_DIR = 'contracts' // This will be created/used within the workspace
+        PACT_CLI_IMAGE = 'pactfoundation/pact-cli:latest'
+        PACT_BROKER_URL = 'https://nitc-0bb42495.pactflow.io'  // Your PactFlow URL
     }
 
     stages {
-        stage('Checkout Product Service Code') {
+        stage('Checkout') {
             steps {
-                // This will clone the 'Services' repo into the root of the workspace.
-                // The 'product-service' sub-directory will then be available.
                 git url: 'https://github.com/jeevanthomaskorah22/Services', branch: 'main'
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build & Run Product Service') {
             steps {
-                dir('product-service') { // Change directory into the cloned 'product-service' folder
-                    bat "docker build -t ${IMAGE_NAME} ."
+                dir('product-service') {
+                    script {
+                        bat "docker build -t jtk022/product-service:latest ."
+                    }
                 }
-            }
-        }
-
-        stage('Docker Login & Push') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    // Use --password-stdin for security, although Jenkins warns about string interpolation.
-                    // This is generally accepted for docker login --password-stdin
-                    bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
-                    bat "docker push ${IMAGE_NAME}"
-                }
-            }
-        }
-
-        stage('Run Container') {
-            steps {
                 script {
-                    // Stop and remove previous container instances gracefully
                     bat "docker stop product-service || exit 0"
                     bat "docker rm product-service || exit 0"
-                    // Start the new container
-                    bat "docker run -d -p 5003:5000 --name product-service ${IMAGE_NAME}"
-                    // Wait for the service to start
-                    bat "ping -n 11 127.0.0.1 > nul" // Wait 10 seconds (11 pings with 1s interval)
+                    bat "docker run -d -p 5003:5000 --name product-service jtk022/product-service:latest"
                 }
             }
         }
 
-        stage('Clone Pact Contracts Repo') {
+        stage('Verify Pact Contracts') {
             steps {
-                // This clones the pacts repo INTO the PACT_CONTRACT_DIR
-                // So, contracts will be at %WORKSPACE%\contracts\orderservice-productservice.json
-                dir("${PACT_CONTRACT_DIR}") {
-                    git url: "${PACT_CONTRACT_REPO}", branch: 'main'
+                withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
+                    script {
+                        bat """
+                        docker run --rm ^
+                          pactfoundation/pact-cli:latest ^
+                          verify ^
+                          --provider-base-url=http://host.docker.internal:5003 ^
+                          --provider=ProductService ^
+                          --broker-base-url=${PACT_BROKER_URL} ^
+                          --broker-token=${PACT_TOKEN}
+                        """
+                    }
                 }
             }
         }
-
-        stage('Debug Contract Files') {
-            steps {
-                // Confirm the files are indeed in the expected host location
-                bat "echo Listing contents of the contracts directory:"
-                bat "dir ${PACT_CONTRACT_DIR}" // This lists files in C:\...\workspace\product-service-pipeline\contracts
-                bat "echo Displaying content of orderservice-productservice.json (if exists):"
-                bat "type ${PACT_CONTRACT_DIR}\\orderservice-productservice.json"
-            }
-        }
-
-    stage('Verify Pact Contracts') {
-    steps {
-        script {
-            echo "Verifying pact contract: orderservice-productservice.json"
-            // Corrected command: Removed quotes around the --pact-url value
-            bat "docker run --rm -v \"${WORKSPACE}\\contracts:/pacts\" pactfoundation/pact-cli:latest verify --provider-base-url=http://host.docker.internal:5003 --pact-url=/pacts/orderservice-productservice.json --provider=\"ProductService\""
-        }
     }
-}
-    }
+
     post {
         always {
             echo "Cleaning up..."
-            // Ensure container is stopped and removed
             bat "docker stop product-service || exit 0"
             bat "docker rm product-service || exit 0"
-            // Clean up unused Docker objects
             bat "docker system prune -f"
         }
     }
