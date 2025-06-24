@@ -29,22 +29,32 @@ pipeline {
         }
 
         stage('Verify Pact Contracts') {
-            steps {
-                withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
-                    script {
-                        bat """
-                        docker run --rm ^
-                          pactfoundation/pact-cli:latest ^
-                          verify ^
-                          --provider-base-url=http://host.docker.internal:5003 ^
-                          --provider=ProductService ^
-                          --broker-base-url=${PACT_BROKER_URL} ^
-                          --broker-token=${PACT_TOKEN}
-                        """
-                    }
-                }
+    environment {
+        // Get the Git commit hash for the provider version
+        // This will be used as the provider version when publishing verification results
+        PRODUCT_SERVICE_VERSION = powershell(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+    }
+    steps {
+        withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
+            script {
+                bat """
+                docker run --rm ^
+                  --network="host" ^
+                  ${PACT_CLI_IMAGE} ^
+                  verify ^
+                  --provider-base-url=http://host.docker.internal:5003 ^
+                  --provider=ProductService ^
+                  --pact-urls=${PACT_BROKER_URL} ^
+                  --consumer-version-selectors="{{\\"mainBranch\\": true}, {\\"deployedOrReleased\\": true}}" ^
+                  --enable-pending --enable-wip-pacts ^
+                  --publish-verification-results ^
+                  --provider-version=${PRODUCT_SERVICE_VERSION} ^
+                  --broker-token=${PACT_TOKEN}
+                """
             }
         }
+    }
+}
     }
 
     post {
