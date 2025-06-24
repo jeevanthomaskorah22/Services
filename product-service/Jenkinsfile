@@ -29,33 +29,32 @@ pipeline {
         }
 
         stage('Verify Pact Contracts') {
-    environment {
-        // Get the Git commit hash for the provider version
-        PRODUCT_SERVICE_VERSION = powershell(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
-    }
     steps {
-        withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
-            script {
-                bat """
-                docker run --rm ^
-                  --network="host" ^
-                  ${PACT_CLI_IMAGE} ^
-                  verify ^
-                  ${PACT_BROKER_URL} ^
-                  --provider-base-url=http://host.docker.internal:5003 ^
-                  --provider=ProductService ^
-                  --consumer-version-selectors="{{\\"mainBranch\\": true}, {\\"deployedOrReleased\\": true}}" ^
-                  --enable-pending --enable-wip-pacts ^
-                  --publish-verification-results ^
-                  --app-version=${PRODUCT_SERVICE_VERSION} ^
-                  --broker-token=${PACT_TOKEN}
-                  REM Optional: if you have state handlers
-                  REM --state-handlers=http://host.docker.internal:5003/_pact/states
-                """
+        powershell(script: '$commitHash = git rev-parse --short HEAD; echo $commitHash', returnStdout: true).trim()
+        withEnv(["PACT_PROVIDER_VERSION=$commitHash"]) {
+            withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
+                script {
+                    bat """
+                    docker run --rm ^
+                      --network="host" ^
+                      pactfoundation/pact-cli:latest ^
+                      broker verify ^
+                      --provider-base-url=http://host.docker.internal:5003 ^
+                      --provider=ProductService ^
+                      --consumer-version-selectors='[{"mainBranch": true}, {"deployedOrReleased": true}]' ^
+                      --enable-pending ^
+                      --enable-wip-pacts ^
+                      --publish-verification-results ^
+                      --provider-app-version=%PACT_PROVIDER_VERSION% ^
+                      --broker-base-url=https://nitc-0bb42495.pactflow.io ^
+                      --broker-token=${PACT_TOKEN}
+                    """
+                }
             }
         }
     }
 }
+
     }
 
     post {
