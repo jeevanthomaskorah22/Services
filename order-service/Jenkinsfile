@@ -84,40 +84,37 @@ pipeline {
         }
 
         stage('Verify Pact Contracts') {
-            steps {
-                script {
-                    // Get commit hash for the provider version dynamically within the script block
-                    def commitHash = powershell(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                    env.PACT_PROVIDER_VERSION = commitHash // Assign to environment variable using env.
+    steps {
+        script {
+            def commitHash = powershell(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+            env.PACT_PROVIDER_VERSION = commitHash
 
-                    echo "Using Pact provider version for verification: ${env.PACT_PROVIDER_VERSION}"
+            echo "Using Pact provider version for verification: ${env.PACT_PROVIDER_VERSION}"
 
-                    withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
-                        // Verify pacts from the broker against the running OrderService (as a provider)
-                        // If OrderService is a provider for other services
-                        bat """
-                        docker run --rm ^
-                          --network="host" ^
-                          ${PACT_CLI_IMAGE} ^
-                          verify ^
-                          ${PACT_BROKER_URL} ^
-                          --provider-base-url=http://host.docker.internal:5001 ^
-                          --provider=OrderService ^
-                          --consumer-version-selectors='[{{\\"mainBranch\\": true}}, {\\"deployedOrReleased\\": true}]' ^
-                          --enable-pending ^
-                          --enable-wip-pacts ^
-                          --publish-verification-results ^
-                          --provider-app-version=${env.PACT_PROVIDER_VERSION} ^
-                          --broker-token=${PACT_TOKEN}
-                          REM IMPORTANT: If OrderService has consumer pacts with provider states,
-                          REM you MUST uncomment the line below and implement a state handler endpoint
-                          REM in your OrderService application at http://host.docker.internal:5001/_pact/states
-                          REM --state-handlers=http://host.docker.internal:5001/_pact/states
-                        """
-                    }
-                }
+            withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
+                bat """
+                docker run --rm ^
+                  --network="host" ^
+                  ${PACT_CLI_IMAGE} ^
+                  verify ^
+                  --provider-base-url=http://host.docker.internal:5001 ^
+                  --provider=OrderService ^
+                  --broker-base-url=${PACT_BROKER_URL} ^ // Correctly use --broker-base-url for fetching from broker
+                  --consumer-version-selectors='[{{\\"mainBranch\\": true}}, {\\"deployedOrReleased\\": true}]' ^
+                  --enable-pending ^
+                  --enable-wip-pacts ^
+                  --publish-verification-results ^
+                  --provider-app-version=${env.PACT_PROVIDER_VERSION} ^
+                  --broker-token=${PACT_TOKEN}
+                  REM IMPORTANT: If OrderService has consumer pacts with provider states,
+                  REM you MUST uncomment the line below and implement a state handler endpoint
+                  REM in your OrderService application at http://host.docker.internal:5001/_pact/states
+                  REM --state-handlers=http://host.docker.internal:5001/_pact/states
+                """
             }
         }
+    }
+}
     }
 
     post {
