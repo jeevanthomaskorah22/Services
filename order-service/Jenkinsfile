@@ -78,31 +78,36 @@ pipeline {
         }
 
         stage('Verify Pact Contracts') {
-            steps {
-                script {
-                    def commitHash = powershell(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                    env.PACT_PROVIDER_VERSION = commitHash
-
-                    withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
-                        bat """
-                        docker run --rm ^
-                          --network="host" ^
-                          ${PACT_CLI_IMAGE} ^
-                          broker verify ^
-                          --provider-base-url=http://host.docker.internal:5001 ^
-                          --provider=OrderService ^
-                          --consumer-version-selectors='[{"mainBranch": true}, {"deployedOrReleased": true}]' ^
-                          --enable-pending ^
-                          --enable-wip-pacts ^
-                          --publish-verification-results ^
-                          --provider-app-version=${PACT_PROVIDER_VERSION} ^
-                          --broker-base-url=${PACT_BROKER_URL} ^
-                          --broker-token=${PACT_TOKEN}
-                        """
-                    }
-                }
+    environment {
+        // Get the Git commit hash for the provider version
+        def commitHash = powershell(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+        PACT_PROVIDER_VERSION = commitHash // Use env.PACT_PROVIDER_VERSION in the bat command
+    }
+    steps {
+        withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
+            script {
+                bat """
+                docker run --rm ^
+                  --network="host" ^
+                  ${PACT_CLI_IMAGE} ^
+                  verify ^
+                  ${PACT_BROKER_URL} ^
+                  --provider-base-url=http://host.docker.internal:5001 ^
+                  --provider=OrderService ^
+                  --consumer-version-selectors='[{{\\"mainBranch\\": true}}, {\\"deployedOrReleased\\": true}]' ^
+                  --enable-pending ^
+                  --enable-wip-pacts ^
+                  --publish-verification-results ^
+                  --provider-app-version=${PACT_PROVIDER_VERSION} ^
+                  --broker-token=${PACT_TOKEN}
+                  REM If your OrderService is ALSO a provider for some pacts (which is what this stage implies),
+                  REM and those pacts define provider states, you would need this:
+                  REM --state-handlers=http://host.docker.internal:5001/_pact/states
+                """
             }
         }
+    }
+}
     }
 
     post {
