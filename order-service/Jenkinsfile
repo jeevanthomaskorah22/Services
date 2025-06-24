@@ -3,6 +3,10 @@ pipeline {
 
     environment {
         IMAGE_NAME = 'jtk022/order-service:latest'
+        PACT_REPO = 'https://github.com/Anagha-mahesh/microservice_pacts.git'
+        PACT_CONTRACT = 'orderservice-productservice.json'
+        PACT_CLI_IMAGE = 'pactfoundation/pact-cli:latest'
+        PACT_BROKER_URL = 'https://nitc-0bb42495.pactflow.io' // Update with your actual Pact Broker URL
     }
 
     stages {
@@ -36,13 +40,42 @@ pipeline {
         stage('Run Container') {
             steps {
                 script {
-                    // Optional - run only if you want to test the service locally
                     bat "docker stop order-service || exit 0"
                     bat "docker rm order-service || exit 0"
                     bat "docker run -d -p 5001:5000 --name order-service ${IMAGE_NAME}"
                 }
             }
         }
+
+        stage('Clone Pact Contract Repo') {
+            steps {
+                script {
+                    bat 'rmdir /S /Q microservice_pacts || exit 0'
+                    bat "git clone ${PACT_REPO} microservice_pacts"
+                }
+            }
+        }
+
+stage('Publish Pact Contract') {
+    steps {
+        withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
+            script {
+                def pactVersion = bat(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+
+                bat """
+                docker run --rm ^
+                  -v %cd%\\microservice_pacts:/pacts ^
+                  pactfoundation/pact-cli:latest ^
+                  publish /pacts/${PACT_CONTRACT} ^
+                  --consumer-app-version=${pactVersion} ^
+                  --broker-base-url=https://your-account.pactflow.io ^
+                  --broker-token=${PACT_TOKEN}
+                """
+            }
+        }
+    }
+}
+
     }
 
     post {
