@@ -39,20 +39,18 @@ pipeline {
                         env.PACT_PROVIDER_VERSION = commitHash
 
                         bat """
-                        docker run --rm ^
-                          --network="host" ^
-                          pactfoundation/pact-cli:latest ^
-                          broker verify ^
-                          --provider-base-url=http://host.docker.internal:5003 ^
-                          --provider=ProductService ^
-                          --consumer-version-selectors='[{"mainBranch": true}, {"deployedOrReleased": true}]' ^
-                          --enable-pending ^
-                          --enable-wip-pacts ^
-                          --publish-verification-results ^
-                          --provider-app-version=${env.PACT_PROVIDER_VERSION} ^
-                          --broker-base-url=${PACT_BROKER_URL} ^
-                          --broker-token=${PACT_TOKEN}
-                        """
+docker run --rm ^
+  --network="host" ^
+  pactfoundation/pact-cli:latest ^
+  pact-provider-verifier ^
+  --provider-base-url=http://host.docker.internal:5003 ^
+  --provider=ProductService ^
+  --publish-verification-results ^
+  --provider-app-version=${env.PACT_PROVIDER_VERSION} ^
+  --broker-base-url=${PACT_BROKER_URL} ^
+  --broker-token=${PACT_TOKEN}
+"""
+
                     }
                 }
             }
