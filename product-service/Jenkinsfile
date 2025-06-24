@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         PACT_CLI_IMAGE = 'pactfoundation/pact-cli:latest'
-        PACT_BROKER_URL = 'https://nitc-0bb42495.pactflow.io'  // Your PactFlow URL
+        PACT_BROKER_URL = 'https://nitc-0bb42495.pactflow.io'
     }
 
     stages {
@@ -29,32 +29,34 @@ pipeline {
         }
 
         stage('Verify Pact Contracts') {
-    steps {
-        powershell(script: '$commitHash = git rev-parse --short HEAD; echo $commitHash', returnStdout: true).trim()
-        withEnv(["PACT_PROVIDER_VERSION=$commitHash"]) {
-            withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
-                script {
-                    bat """
-                    docker run --rm ^
-                      --network="host" ^
-                      pactfoundation/pact-cli:latest ^
-                      broker verify ^
-                      --provider-base-url=http://host.docker.internal:5003 ^
-                      --provider=ProductService ^
-                      --consumer-version-selectors='[{"mainBranch": true}, {"deployedOrReleased": true}]' ^
-                      --enable-pending ^
-                      --enable-wip-pacts ^
-                      --publish-verification-results ^
-                      --provider-app-version=%PACT_PROVIDER_VERSION% ^
-                      --broker-base-url=https://nitc-0bb42495.pactflow.io ^
-                      --broker-token=${PACT_TOKEN}
-                    """
+            steps {
+                withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
+                    script {
+                        // ✅ Get short Git commit hash
+                        def commitHash = powershell(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+
+                        // ✅ Export it to the environment
+                        env.PACT_PROVIDER_VERSION = commitHash
+
+                        bat """
+                        docker run --rm ^
+                          --network="host" ^
+                          pactfoundation/pact-cli:latest ^
+                          broker verify ^
+                          --provider-base-url=http://host.docker.internal:5003 ^
+                          --provider=ProductService ^
+                          --consumer-version-selectors='[{"mainBranch": true}, {"deployedOrReleased": true}]' ^
+                          --enable-pending ^
+                          --enable-wip-pacts ^
+                          --publish-verification-results ^
+                          --provider-app-version=${env.PACT_PROVIDER_VERSION} ^
+                          --broker-base-url=${PACT_BROKER_URL} ^
+                          --broker-token=${PACT_TOKEN}
+                        """
+                    }
                 }
             }
         }
-    }
-}
-
     }
 
     post {
