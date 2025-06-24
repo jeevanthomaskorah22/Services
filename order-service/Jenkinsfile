@@ -60,21 +60,25 @@ stage('Publish Pact Contract') {
     steps {
         withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
             script {
-                def pactVersion = bat(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                def pactVersion = bat(
+                    script: "git rev-parse --short HEAD",
+                    returnStdout: true
+                ).trim()
 
                 bat """
                 docker run --rm ^
                   -v %cd%\\microservice_pacts:/pacts ^
                   pactfoundation/pact-cli:latest ^
-                  publish /pacts/${PACT_CONTRACT} ^
+                  publish /pacts/orderservice-productservice.json ^
                   --consumer-app-version=${pactVersion} ^
-                  --broker-base-url=https://your-account.pactflow.io ^
+                  --broker-base-url=https://nitc-0bb42495.pactflow.io ^
                   --broker-token=${PACT_TOKEN}
                 """
             }
         }
     }
 }
+
 
     }
 
