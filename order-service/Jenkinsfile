@@ -49,41 +49,29 @@ pipeline {
         }
 
         stage('Verify Contracts with Docker-based Pact CLI') {
-    steps {
-        withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
-            script {
-                def providerVersion = bat(
-                    script: 'git rev-parse --short HEAD',
-                    returnStdout: true
-                ).trim()
+            steps {
+                withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
+                    script {
+                        def providerVersion = bat(
+                            script: 'git rev-parse --short HEAD',
+                            returnStdout: true
+                        ).trim()
 
-                echo "Using provider app version: ${providerVersion}"
+                        echo "Using provider app version: ${providerVersion}"
 
-                def pactCommand = """
-docker run --rm ^
-  --network=host ^
-  ${PACT_CLI_IMAGE} ^
-  verify ^
-  --provider=OrderService ^
-  --provider-base-url=http://host.docker.internal:${ORDER_SERVICE_HOST_PORT} ^
-  --broker-base-url=${PACT_BROKER_URL} ^
-  --broker-token=${PACT_TOKEN} ^
-  --enable-pending ^
-  --publish-verification-results ^
-  --provider-app-version=${providerVersion} ^
-  --consumer-version-selectors="[{\\"mainBranch\\": true}, {\\"deployedOrReleased\\": true}]"
-"""
+                        // *** CORRECTED SECTION ***
+                        // The command is now a single line to prevent parsing errors with the 'bat' step.
+                        def pactCommand = "docker run --rm --network=host ${PACT_CLI_IMAGE} verify --provider=OrderService --provider-base-url=http://host.docker.internal:${ORDER_SERVICE_HOST_PORT} --broker-base-url=${PACT_BROKER_URL} --broker-token=${PACT_TOKEN} --enable-pending --publish-verification-results --provider-app-version=${providerVersion} --consumer-version-selectors=\"[{\\\"mainBranch\\\": true}, {\\\"deployedOrReleased\\\": true}]\""
 
-                echo "Running Pact verification Docker command:"
-                echo pactCommand
+                        echo "Running Pact verification Docker command:"
+                        echo pactCommand
 
-                // Actually run the command
-                bat pactCommand
+                        // Actually run the command
+                        bat pactCommand
+                    }
+                }
             }
         }
-    }
-}
-
     }
 
     post {
