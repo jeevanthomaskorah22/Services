@@ -47,7 +47,8 @@ pipeline {
             }
         }
 
-        stage('Wait for Service to be Healthy') {
+
+stage('Wait for Service to be Healthy') {
     steps {
         script {
             def maxAttempts = 10
@@ -55,7 +56,8 @@ pipeline {
             def serviceUp = false
 
             for (int i = 0; i < maxAttempts; i++) {
-                def result = bat(script: 'curl -s -o NUL -w "%{http_code}" http://host.docker.internal:8012/health', returnStdout: true).trim()
+                // Corrected curl command: Ensure the URL is properly quoted
+                def result = bat(script: 'curl -s -o NUL -w "%{http_code}" "http://host.docker.internal:8012/health"', returnStdout: true).trim()
 
                 if (result == '200') {
                     echo "✅ Service is healthy and running!"
