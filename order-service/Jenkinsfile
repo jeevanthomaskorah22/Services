@@ -4,7 +4,6 @@ pipeline {
     environment {
         IMAGE_NAME = 'jtk022/order-service:latest'
         PACT_REPO = 'https://github.com/Anagha-mahesh/microservice_pacts.git'
-        PACT_CONTRACT = 'orderservice-productservice.json'
         PACT_CLI_IMAGE = 'pactfoundation/pact-cli:latest'
         PACT_BROKER_URL = 'https://nitc-0bb42495.pactflow.io'
     }
@@ -42,51 +41,19 @@ pipeline {
                 script {
                     bat "docker stop order-service || exit 0"
                     bat "docker rm order-service || exit 0"
-                    // Map external port 8012 to internal port 8002
-                    bat "docker run -d -p 8012:8002 --name order-service ${IMAGE_NAME}"
+                    bat "docker run -d -p 8002:8002 --name order-service ${IMAGE_NAME}"
                 }
             }
         }
 
         stage('Wait for Startup') {
             steps {
-                echo "Waiting for container to start..."
-                // Sleep for 15 seconds to let the service boot up
+                echo "Waiting for OrderService to be ready..."
                 sleep time: 15, unit: 'SECONDS'
             }
         }
 
-        stage('Clone Pact Contract Repo') {
-            steps {
-                script {
-                    bat 'if exist microservice_pacts rmdir /S /Q microservice_pacts'
-                    bat "git clone ${PACT_REPO} microservice_pacts"
-                }
-            }
-        }
-
-        stage('Publish Pact Contract') {
-            steps {
-                withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
-                    script {
-                        def pactVersion = powershell(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
-                        echo "Using Pact consumer version: ${pactVersion}"
-
-                        bat """
-                        docker run --rm ^
-                          -v "%cd%\\microservice_pacts:/pacts" ^
-                          ${PACT_CLI_IMAGE} ^
-                          publish /pacts/${PACT_CONTRACT} ^
-                          --consumer-app-version=${pactVersion} ^
-                          --broker-base-url=${PACT_BROKER_URL} ^
-                          --broker-token=${PACT_TOKEN}
-                        """
-                    }
-                }
-            }
-        }
-
-        stage('Verify Pact Contracts') {
+        stage('Verify Pact Contracts from PactFlow') {
             steps {
                 withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
                     script {
@@ -98,8 +65,8 @@ pipeline {
                           --network="host" ^
                           ${PACT_CLI_IMAGE} ^
                           verify ^
-                          --provider-base-url=http://host.docker.internal:8012 ^
                           --provider=OrderService ^
+                          --provider-base-url=http://host.docker.internal:8012 ^
                           --broker-base-url=${PACT_BROKER_URL} ^
                           --consumer-version-selectors='[{"mainBranch": true}, {"deployedOrReleased": true}]' ^
                           --enable-pending ^
