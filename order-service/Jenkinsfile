@@ -3,9 +3,9 @@ pipeline {
 
     environment {
         IMAGE_NAME = 'jtk022/order-service:latest'
-        PACT_REPO = 'https://github.com/Anagha-mahesh/microservice_pacts.git'
-        PACT_CLI_IMAGE = 'pactfoundation/pact-cli:latest'
         PACT_BROKER_URL = 'https://nitc-0bb42495.pactflow.io'
+        ORDER_SERVICE_CONTAINER_PORT = 8002
+        ORDER_SERVICE_HOST_PORT = 8002
     }
 
     stages {
@@ -41,15 +41,50 @@ pipeline {
                 script {
                     bat "docker stop order-service || exit 0"
                     bat "docker rm order-service || exit 0"
-                    bat "docker run -d -p 8002:8002 --name order-service ${IMAGE_NAME}"
+                    bat "docker run -d -p ${ORDER_SERVICE_HOST_PORT}:${ORDER_SERVICE_CONTAINER_PORT} --name order-service ${IMAGE_NAME}"
                 }
             }
         }
 
-        stage('Wait for Startup') {
+        stage('Wait for Service to be Healthy') {
             steps {
-                echo "Waiting for OrderService to be ready..."
-                sleep time: 15, unit: 'SECONDS'
+                script {
+                    def maxAttempts = 20
+                    def sleepSeconds = 5
+                    def serviceUp = false
+                    def healthCheckUrl = "http://host.docker.internal:${ORDER_SERVICE_HOST_PORT}/health"
+
+                    echo "Waiting for OrderService to be healthy at ${healthCheckUrl}..."
+
+                    for (int i = 0; i < maxAttempts; i++) {
+                        def result = bat(
+                            script: "curl -s -o NUL -w \"%{http_code}\" \"${healthCheckUrl}\"",
+                            returnStdout: true
+                        ).trim()
+
+                        if (result == '200') {
+                            echo "✅ Service is healthy and running!"
+                            serviceUp = true
+                            break
+                        } else {
+                            echo "⏳ Service not ready yet (HTTP ${result}). Retrying in ${sleepSeconds}s..."
+                            sleep sleepSeconds
+                        }
+                    }
+
+                    if (!serviceUp) {
+                        error "❌ Service did not become healthy in time."
+                    }
+                }
+            }
+        }
+
+        stage('Check Ruby and Pact CLI Availability') {
+            steps {
+                bat 'where ruby'
+                bat 'ruby -v'
+                bat 'where pact'
+                bat 'pact help'
             }
         }
 
@@ -58,22 +93,25 @@ pipeline {
                 withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
                     script {
                         def providerVersion = powershell(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
-                        echo "Using Pact provider version for verification: ${providerVersion}"
 
                         bat """
-                        docker run --rm ^
-                          --network="host" ^
-                          ${PACT_CLI_IMAGE} ^
-                          verify ^
-                          --provider=OrderService ^
-                          --provider-base-url=http://host.docker.internal:8012 ^
-                          --broker-base-url=${PACT_BROKER_URL} ^
-                          --consumer-version-selectors='[{"mainBranch": true}, {"deployedOrReleased": true}]' ^
+                        pact-broker can-i-deploy ^
+                          --pacticipant PaymentService ^
+                          --version ${providerVersion} ^
+                          --to-environment test ^
+                          --broker-base-url="${PACT_BROKER_URL}" ^
+                          --broker-token="${PACT_TOKEN}" || exit /b 1
+
+                        pact-broker publish-verification-results ^
+                          --provider OrderService ^
+                          --provider-app-version ${providerVersion} ^
+                          --provider-base-url http://host.docker.internal:${ORDER_SERVICE_HOST_PORT} ^
+                          --broker-base-url="${PACT_BROKER_URL}" ^
+                          --broker-token="${PACT_TOKEN}" ^
+                          --consumer-version-selectors '[{"mainBranch": true}, {"deployedOrReleased": true}]' ^
                           --enable-pending ^
                           --enable-wip-pacts ^
-                          --publish-verification-results ^
-                          --provider-app-version=${providerVersion} ^
-                          --broker-token=${PACT_TOKEN}
+                          --publish
                         """
                     }
                 }
@@ -84,9 +122,16 @@ pipeline {
     post {
         always {
             echo "Cleaning up..."
-            bat "docker stop order-service || exit 0"
-            bat "docker rm order-service || exit 0"
-            bat "docker system prune -f"
+            bat "docker stop order-service || echo 'OrderService container not running.'"
+            bat "docker rm order-service || echo 'OrderService container not found.'"
+            bat "docker image prune -f --filter \"dangling=true\" || echo 'No dangling images to prune.'"
+            echo "Cleanup complete."
+        }
+        failure {
+            echo "❌ Pipeline failed!"
+        }
+        success {
+            echo "✅ Pipeline completed successfully!"
         }
     }
 }
