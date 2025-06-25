@@ -18,9 +18,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 dir('order-service') {
-                    script {
-                        bat "docker build -t ${IMAGE_NAME} ."
-                    }
+                    bat "docker build -t ${IMAGE_NAME} ."
                 }
             }
         }
@@ -28,15 +26,13 @@ pipeline {
         stage('Docker Login & Push') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    script {
-                        bat "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
-                        bat "docker push ${IMAGE_NAME}"
-                    }
+                    bat "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
+                    bat "docker push ${IMAGE_NAME}"
                 }
             }
         }
 
-        stage('Run Container') {
+        stage('Run Order-Service Container') {
             steps {
                 script {
                     bat "docker stop order-service || exit 0"
@@ -51,67 +47,53 @@ pipeline {
                 script {
                     def maxAttempts = 20
                     def sleepSeconds = 5
-                    def serviceUp = false
-                    def healthCheckUrl = "http://host.docker.internal:${ORDER_SERVICE_HOST_PORT}/health"
+                    def healthy = false
+                    def url = "http://localhost:${ORDER_SERVICE_HOST_PORT}/health"
 
-                    echo "Waiting for OrderService to be healthy at ${healthCheckUrl}..."
+                    echo "Waiting for service to be healthy at ${url}..."
 
                     for (int i = 0; i < maxAttempts; i++) {
                         def result = bat(
-                            script: "curl -s -o NUL -w \"%{http_code}\" \"${healthCheckUrl}\"",
+                            script: "curl -s -o NUL -w \"%{http_code}\" ${url}",
                             returnStdout: true
                         ).trim()
+                        echo "Attempt ${i+1}: HTTP Status ${result}"
 
-                        if (result == '200') {
-                            echo "✅ Service is healthy and running!"
-                            serviceUp = true
+                        if (result == "200") {
+                            healthy = true
                             break
-                        } else {
-                            echo "⏳ Service not ready yet (HTTP ${result}). Retrying in ${sleepSeconds}s..."
-                            sleep sleepSeconds
                         }
+                        sleep sleepSeconds
                     }
 
-                    if (!serviceUp) {
-                        error "❌ Service did not become healthy in time."
+                    if (!healthy) {
+                        error "Service not healthy after ${maxAttempts} attempts."
                     }
                 }
             }
         }
 
-        stage('Check Ruby and Pact CLI Availability') {
-            steps {
-                bat 'where ruby'
-                bat 'ruby -v'
-                bat 'where pact'
-                bat 'pact help'
-            }
-        }
-
-        stage('Verify Pact Contracts from PactFlow') {
+        stage('Verify Pacts using Ruby-based Pact CLI') {
             steps {
                 withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
                     script {
-                        def providerVersion = powershell(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
-
+                        def providerVersion = bat(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
                         bat """
                         pact-broker can-i-deploy ^
-                          --pacticipant PaymentService ^
-                          --version ${providerVersion} ^
-                          --to-environment test ^
-                          --broker-base-url="${PACT_BROKER_URL}" ^
-                          --broker-token="${PACT_TOKEN}" || exit /b 1
-
-                        pact-broker publish-verification-results ^
-                          --provider OrderService ^
-                          --provider-app-version ${providerVersion} ^
-                          --provider-base-url http://host.docker.internal:${ORDER_SERVICE_HOST_PORT} ^
                           --broker-base-url="${PACT_BROKER_URL}" ^
                           --broker-token="${PACT_TOKEN}" ^
-                          --consumer-version-selectors '[{"mainBranch": true}, {"deployedOrReleased": true}]' ^
+                          --pacticipant=OrderService ^
+                          --version=${providerVersion}
+
+                        pact-broker verify ^
+                          --provider=OrderService ^
+                          --provider-base-url=http://localhost:${ORDER_SERVICE_HOST_PORT} ^
+                          --broker-base-url="${PACT_BROKER_URL}" ^
+                          --broker-token="${PACT_TOKEN}" ^
                           --enable-pending ^
-                          --enable-wip-pacts ^
-                          --publish
+                          --publish-verification-results ^
+                          --provider-app-version="${providerVersion}" ^
+                          --consumer-version-selectors='[{"mainBranch": true}, {"deployedOrReleased": true}]'
                         """
                     }
                 }
@@ -122,16 +104,15 @@ pipeline {
     post {
         always {
             echo "Cleaning up..."
-            bat "docker stop order-service || echo 'OrderService container not running.'"
-            bat "docker rm order-service || echo 'OrderService container not found.'"
-            bat "docker image prune -f --filter \"dangling=true\" || echo 'No dangling images to prune.'"
-            echo "Cleanup complete."
-        }
-        failure {
-            echo "❌ Pipeline failed!"
+            bat "docker stop order-service || echo 'Not running'"
+            bat "docker rm order-service || echo 'Not found'"
+            bat "docker image prune -f --filter \"dangling=true\""
         }
         success {
-            echo "✅ Pipeline completed successfully!"
+            echo "✅ Pipeline completed successfully."
+        }
+        failure {
+            echo "❌ Pipeline failed. Check logs."
         }
     }
 }
