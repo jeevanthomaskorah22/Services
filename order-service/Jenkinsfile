@@ -48,30 +48,31 @@ pipeline {
         }
 
         stage('Wait for Service to be Healthy') {
-            steps {
-                script {
-                    def maxAttempts = 10
-                    def sleepSeconds = 5
-                    def serviceUp = false
+    steps {
+        script {
+            def maxAttempts = 10
+            def sleepSeconds = 5
+            def serviceUp = false
 
-                    for (int i = 0; i < maxAttempts; i++) {
-                        def result = bat(script: 'curl -s -o nul -w "%{http_code}" http://host.docker.internal:8012/health', returnStdout: true).trim()
-                        if (result == '200') {
-                            echo "✅ Service is healthy and running!"
-                            serviceUp = true
-                            break
-                        } else {
-                            echo "⏳ Service not ready yet (status: ${result}). Retrying in ${sleepSeconds}s..."
-                            sleep sleepSeconds
-                        }
-                    }
-
-                    if (!serviceUp) {
-                        error "❌ Service did not become healthy in time."
-                    }
+            for (int i = 0; i < maxAttempts; i++) {
+                def result = bat(script: 'curl -s -o NUL -w "%{http_code}" http://host.docker.internal:8012/health', returnStdout: true).trim()
+                if (result == '200') {
+                    echo "✅ Service is healthy and running!"
+                    serviceUp = true
+                    break
+                } else {
+                    echo "⏳ Service not ready yet (status: ${result}). Retrying in ${sleepSeconds}s..."
+                    sleep sleepSeconds
                 }
             }
+
+            if (!serviceUp) {
+                error "❌ Service did not become healthy in time."
+            }
         }
+    }
+}
+
 
         stage('Clone Pact Contract Repo') {
             steps {
