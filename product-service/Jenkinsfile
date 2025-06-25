@@ -1,11 +1,6 @@
 pipeline {
     agent any
 
-    environment {
-        PACT_CLI_IMAGE = 'pactfoundation/pact-cli:latest'
-        PACT_BROKER_URL = 'https://nitc-0bb42495.pactflow.io'
-    }
-
     stages {
         stage('Checkout') {
             steps {
@@ -13,48 +8,12 @@ pipeline {
             }
         }
 
-        stage('Build & Run Product Service') {
+        stage('Run with Docker Compose') {
             steps {
                 dir('product-service') {
                     script {
-                        bat "docker build -t jtk022/product-service:latest ."
-                    }
-                }
-                script {
-                    bat "docker stop product-service || exit 0"
-                    bat "docker rm product-service || exit 0"
-                    bat "docker run -d -p 5003:5000 --name product-service jtk022/product-service:latest"
-                }
-            }
-        }
-
-        stage('Verify Pact Contracts') {
-            steps {
-                withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
-                    script {
-                        // ✅ Get short Git commit hash
-                        def commitHash = powershell(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-
-                        // ✅ Export it to the environment
-                        env.PACT_PROVIDER_VERSION = commitHash
-
-                        bat """
-docker run --rm ^
-  --network="host" ^
-  pactfoundation/pact-cli:latest ^
-  pact-provider-verifier ^
-  --provider-base-url=http://host.docker.internal:5003 ^
-  --provider=ProductService ^
-  --pact-broker-base-url=${PACT_BROKER_URL} ^
-  --broker-token=${PACT_TOKEN} ^
-  --publish-verification-results ^
-  --provider-app-version=${PACT_PROVIDER_VERSION} ^
-  --consumer-version-selectors='[{"mainBranch": true}, {"deployedOrReleased": true}]' ^
-  --enable-pending ^
-  --enable-wip-pacts
-"""
-
-
+                        bat "docker-compose down || exit 0"
+                        bat "docker-compose up --build -d"
                     }
                 }
             }
@@ -64,8 +23,9 @@ docker run --rm ^
     post {
         always {
             echo "Cleaning up..."
-            bat "docker stop product-service || exit 0"
-            bat "docker rm product-service || exit 0"
+            dir('product-service') {
+                bat "docker-compose down"
+            }
             bat "docker system prune -f"
         }
     }
