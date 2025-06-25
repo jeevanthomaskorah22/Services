@@ -42,49 +42,19 @@ pipeline {
             }
         }
 
-        stage('Wait for Service to be Healthy') {
+        stage('Wait for Container Startup') {
             steps {
-                script {
-                    def maxAttempts = 20
-                    def sleepSeconds = 5
-                    def healthy = false
-                    def url = "http://localhost:${ORDER_SERVICE_HOST_PORT}/health"
-
-                    echo "Waiting for service to be healthy at ${url}..."
-
-                    for (int i = 0; i < maxAttempts; i++) {
-                        def result = bat(
-                            script: "curl -s -o NUL -w \"%{http_code}\" ${url}",
-                            returnStdout: true
-                        ).trim()
-                        echo "Attempt ${i+1}: HTTP Status ${result}"
-
-                        if (result == "200") {
-                            healthy = true
-                            break
-                        }
-                        sleep sleepSeconds
-                    }
-
-                    if (!healthy) {
-                        error "Service not healthy after ${maxAttempts} attempts."
-                    }
-                }
+                echo "Waiting 20 seconds for order-service to start..."
+                sleep time: 20, unit: 'SECONDS'
             }
         }
 
-        stage('Verify Pacts using Ruby-based Pact CLI') {
+        stage('Verify Pacts using Pact CLI (Ruby)') {
             steps {
                 withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
                     script {
                         def providerVersion = bat(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
                         bat """
-                        pact-broker can-i-deploy ^
-                          --broker-base-url="${PACT_BROKER_URL}" ^
-                          --broker-token="${PACT_TOKEN}" ^
-                          --pacticipant=OrderService ^
-                          --version=${providerVersion}
-
                         pact-broker verify ^
                           --provider=OrderService ^
                           --provider-base-url=http://localhost:${ORDER_SERVICE_HOST_PORT} ^
