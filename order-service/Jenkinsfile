@@ -56,6 +56,7 @@ pipeline {
 
             for (int i = 0; i < maxAttempts; i++) {
                 def result = bat(script: 'curl -s -o NUL -w "%{http_code}" http://host.docker.internal:8012/health', returnStdout: true).trim()
+
                 if (result == '200') {
                     echo "✅ Service is healthy and running!"
                     serviceUp = true
