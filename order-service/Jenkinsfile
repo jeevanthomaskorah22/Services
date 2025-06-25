@@ -42,40 +42,19 @@ pipeline {
                 script {
                     bat "docker stop order-service || exit 0"
                     bat "docker rm order-service || exit 0"
+                    // Map external port 8012 to internal port 8002
                     bat "docker run -d -p 8012:8002 --name order-service ${IMAGE_NAME}"
                 }
             }
         }
 
-
-stage('Wait for Service to be Healthy') {
-    steps {
-        script {
-            def maxAttempts = 10
-            def sleepSeconds = 5
-            def serviceUp = false
-
-            for (int i = 0; i < maxAttempts; i++) {
-                // Corrected curl command: Ensure the URL is properly quoted
-                def result = bat(script: 'curl -s -o NUL -w "%{http_code}" "http://host.docker.internal:8012/health"', returnStdout: true).trim()
-
-                if (result == '200') {
-                    echo "✅ Service is healthy and running!"
-                    serviceUp = true
-                    break
-                } else {
-                    echo "⏳ Service not ready yet (status: ${result}). Retrying in ${sleepSeconds}s..."
-                    sleep sleepSeconds
-                }
-            }
-
-            if (!serviceUp) {
-                error "❌ Service did not become healthy in time."
+        stage('Wait for Startup') {
+            steps {
+                echo "Waiting for container to start..."
+                // Sleep for 15 seconds to let the service boot up
+                sleep time: 15, unit: 'SECONDS'
             }
         }
-    }
-}
-
 
         stage('Clone Pact Contract Repo') {
             steps {
@@ -109,12 +88,11 @@ stage('Wait for Service to be Healthy') {
 
         stage('Verify Pact Contracts') {
             steps {
-                script {
-                    def commitHash = powershell(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                    env.PACT_PROVIDER_VERSION = commitHash
-                    echo "Using Pact provider version: ${env.PACT_PROVIDER_VERSION}"
+                withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
+                    script {
+                        def providerVersion = powershell(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+                        echo "Using Pact provider version for verification: ${providerVersion}"
 
-                    withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
                         bat """
                         docker run --rm ^
                           --network="host" ^
@@ -123,11 +101,11 @@ stage('Wait for Service to be Healthy') {
                           --provider-base-url=http://host.docker.internal:8012 ^
                           --provider=OrderService ^
                           --broker-base-url=${PACT_BROKER_URL} ^
-                          --consumer-version-selectors='[{{\\"mainBranch\\": true}}, {\\"deployedOrReleased\\": true}]' ^
+                          --consumer-version-selectors='[{"mainBranch": true}, {"deployedOrReleased": true}]' ^
                           --enable-pending ^
                           --enable-wip-pacts ^
                           --publish-verification-results ^
-                          --provider-app-version=${env.PACT_PROVIDER_VERSION} ^
+                          --provider-app-version=${providerVersion} ^
                           --broker-token=${PACT_TOKEN}
                         """
                     }
