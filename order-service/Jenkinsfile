@@ -42,8 +42,33 @@ pipeline {
                 script {
                     bat "docker stop order-service || exit 0"
                     bat "docker rm order-service || exit 0"
-                    // Map host port 8002 to container port 8002
-                    bat "docker run -d -p 8002:8002 --name order-service ${IMAGE_NAME}"
+                    bat "docker run -d -p 8012:8002 --name order-service ${IMAGE_NAME}"
+                }
+            }
+        }
+
+        stage('Wait for Service to be Healthy') {
+            steps {
+                script {
+                    def maxAttempts = 10
+                    def sleepSeconds = 5
+                    def serviceUp = false
+
+                    for (int i = 0; i < maxAttempts; i++) {
+                        def result = bat(script: 'curl -s -o nul -w "%{http_code}" http://host.docker.internal:8012/health', returnStdout: true).trim()
+                        if (result == '200') {
+                            echo "✅ Service is healthy and running!"
+                            serviceUp = true
+                            break
+                        } else {
+                            echo "⏳ Service not ready yet (status: ${result}). Retrying in ${sleepSeconds}s..."
+                            sleep sleepSeconds
+                        }
+                    }
+
+                    if (!serviceUp) {
+                        error "❌ Service did not become healthy in time."
+                    }
                 }
             }
         }
@@ -83,8 +108,7 @@ pipeline {
                 script {
                     def commitHash = powershell(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
                     env.PACT_PROVIDER_VERSION = commitHash
-
-                    echo "Using Pact provider version for verification: ${env.PACT_PROVIDER_VERSION}"
+                    echo "Using Pact provider version: ${env.PACT_PROVIDER_VERSION}"
 
                     withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
                         bat """
@@ -92,7 +116,7 @@ pipeline {
                           --network="host" ^
                           ${PACT_CLI_IMAGE} ^
                           verify ^
-                          --provider-base-url=http://host.docker.internal:8002 ^
+                          --provider-base-url=http://host.docker.internal:8012 ^
                           --provider=OrderService ^
                           --broker-base-url=${PACT_BROKER_URL} ^
                           --consumer-version-selectors='[{{\\"mainBranch\\": true}}, {\\"deployedOrReleased\\": true}]' ^
