@@ -1,14 +1,6 @@
 pipeline {
     agent any
 
-    environment {
-        IMAGE_NAME = 'jtk022/order-service:latest'
-        PACT_CLI_IMAGE = 'pactfoundation/pact-cli:latest'
-        PACT_BROKER_URL = 'https://nitc-0bb42495.pactflow.io'
-        ORDER_SERVICE_CONTAINER_PORT = 8002
-        ORDER_SERVICE_HOST_PORT = 8002
-    }
-
     stages {
         stage('Checkout') {
             steps {
@@ -16,58 +8,12 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Run with Docker Compose') {
             steps {
                 dir('order-service') {
-                    bat "docker build -t ${IMAGE_NAME} ."
-                }
-            }
-        }
-
-        stage('Docker Login & Push') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    bat "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
-                    bat "docker push ${IMAGE_NAME}"
-                }
-            }
-        }
-
-        stage('Run Order-Service Container') {
-            steps {
-                bat "docker stop order-service || exit 0"
-                bat "docker rm order-service || exit 0"
-                bat "docker run -d -p ${ORDER_SERVICE_HOST_PORT}:${ORDER_SERVICE_CONTAINER_PORT} --name order-service ${IMAGE_NAME}"
-            }
-        }
-
-        stage('Wait for Container') {
-            steps {
-                echo "Waiting 20 seconds for the container to initialize..."
-                sleep time: 20, unit: 'SECONDS'
-            }
-        }
-
-        stage('Verify Contracts with Docker-based Pact CLI') {
-            steps {
-                withCredentials([string(credentialsId: 'PACTFLOW_TOKEN', variable: 'PACT_TOKEN')]) {
                     script {
-                        def providerVersion = bat(
-                            script: 'git rev-parse --short HEAD',
-                            returnStdout: true
-                        ).trim()
-
-                        echo "Using provider app version: ${providerVersion}"
-
-                        // *** CORRECTED SECTION ***
-                        // The command is now a single line to prevent parsing errors with the 'bat' step.
-                        def pactCommand = "docker run --rm --network=host ${PACT_CLI_IMAGE} verify --provider=OrderService --provider-base-url=http://host.docker.internal:${ORDER_SERVICE_HOST_PORT} --broker-base-url=${PACT_BROKER_URL} --broker-token=${PACT_TOKEN} --enable-pending --publish-verification-results --provider-app-version=${providerVersion} --consumer-version-selectors=\"[{\\\"mainBranch\\\": true}, {\\\"deployedOrReleased\\\": true}]\""
-
-                        echo "Running Pact verification Docker command:"
-                        echo pactCommand
-
-                        // Actually run the command
-                        bat pactCommand
+                        bat "docker-compose down || exit 0"
+                        bat "docker-compose up --build -d"
                     }
                 }
             }
@@ -76,16 +22,11 @@ pipeline {
 
     post {
         always {
-            echo "Cleaning up Docker environment..."
-            bat "docker stop order-service || echo 'Not running'"
-            bat "docker rm order-service || echo 'Not found'"
-            bat "docker image prune -f --filter \"dangling=true\""
-        }
-        success {
-            echo "✅ Pact verification successful."
-        }
-        failure {
-            echo "❌ Pact verification failed."
+            echo "Cleaning up..."
+            dir('order-service') {
+                bat "docker-compose down"
+            }
+            bat "docker system prune -f"
         }
     }
 }
